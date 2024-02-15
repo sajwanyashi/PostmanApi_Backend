@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,7 +17,6 @@ func GetItemsForMeal(filePath, day, meal string) []string {
 		fmt.Println("Error:", err)
 		return nil
 	}
-
 
 	var items []string
 	// Find the column index for the specified day
@@ -49,8 +49,13 @@ func GetItemsForMeal(filePath, day, meal string) []string {
 	// Iterate through cells in the column for the specified day
 	// Start from the row after the meal row
 	for _, row := range xlFile.Sheets[0].Rows[mealRowIndex+1:] {
+
+		if len(row.Cells) < dayColumnIndex {
+			continue
+		}
+
 		// Append items if the cell's value is not the same as the specified day
-		if meal == "dinner" && row.Cells[dayColumnIndex].String() == "" {
+		if row.Cells[dayColumnIndex].String() == "" {
 			break // Stop appending if the meal is "dinner" and an empty cell is reached
 		}
 		if strings.ToLower(row.Cells[dayColumnIndex].String()) != strings.ToLower(day) {
@@ -74,6 +79,7 @@ func NumberOfItemsInMeal(filePath, day, meal string) {
 // Function to check if the given item is in a specific meal for the given day
 func IsItemInMeal(filePath, day, meal, item string) bool {
 	// Get the items for the specified meal and day
+
 	items := GetItemsForMeal(filePath, day, meal)
 
 	// Iterate over the items and check if the given item is present
@@ -89,25 +95,43 @@ func IsItemInMeal(filePath, day, meal, item string) bool {
 
 // Function to convert the menu into JSON and save it to a file
 func ConvertMenuToJSON() error {
-	filePath := " "
+	filePath := "Sample-Menu.xlsx"
 	type MenuItem struct {
 		Day   string
+		Date  string
 		Meal  string
 		Items []string
 	}
 
 	var menu []MenuItem
 
-	days := []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+	days := []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 	meals := []string{"Breakfast", "Lunch", "Dinner"}
 	for _, meal1 := range meals {
 		for _, day := range days {
 
 			items := GetItemsForMeal(filePath, day, meal1)
 
+			xlFile, err := xlsx.OpenFile(filePath)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return nil
+			}
+
+			// Find the date
+			var dayColumnIndex int
+			headerRow := xlFile.Sheets[0].Rows[0]
+			for i, cell := range headerRow.Cells {
+				if strings.ToLower(cell.String()) == strings.ToLower(day) {
+					dayColumnIndex = i
+					break
+				}
+			}
+
 			// Create MenuItem
 			menuItem := MenuItem{
 				Day:   day,
+				Date:  xlFile.Sheets[0].Rows[1].Cells[dayColumnIndex].String(),
 				Meal:  meal1,
 				Items: items,
 			}
@@ -153,7 +177,7 @@ func main() {
 	4. Convert menu to a struct and then save is as a JSON file in the same directory`)
 	fmt.Scan(&option)
 	// Provide the path to the XLSX file
-	filePath := " " 
+	filePath := "Sample-Menu.xlsx"
 
 	switch option {
 	case 1:
@@ -179,12 +203,14 @@ func main() {
 
 	case 3:
 		var day, meal, item string
+		scanner := bufio.NewScanner(os.Stdin)
 		fmt.Print("Enter the day: ")
 		fmt.Scanln(&day)
 		fmt.Print("Enter the meal: ")
 		fmt.Scanln(&meal)
 		fmt.Print("Enter the item: ")
-		fmt.Scanln(&item)
+		scanner.Scan()
+		item = scanner.Text()
 		// Check if the item is in the specified meal for the given day
 		if IsItemInMeal(filePath, day, meal, item) {
 			fmt.Printf("%s is in %s on %s\n", item, meal, day)
